@@ -15,6 +15,7 @@ typedef struct hash_iter hash_iter_t;
 typedef void (*hash_destruir_dato_t)(void *);
 
 /* Crea el hash
+ * Pos: devuelve un puntero a una tabla de hash.
  */
 hash_t *hash_crear(hash_destruir_dato_t destruir_dato);
 
