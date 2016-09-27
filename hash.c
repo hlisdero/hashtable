@@ -2,7 +2,7 @@
 #include "lista.h"
 #include <stdlib.h>
 #include <string.h>
-#define TAM_INICIAL 64
+#define TAM_INICIAL 67
 
 /* Definiciones de estructuras de la tabla de hash */
 
@@ -20,18 +20,18 @@ struct hash_iter {
 };
 
 /* Estructura para guardar los datos */
-struct contenedor {
-    char * clave;
-    void * dato;
+struct nodo {
+    char *clave;
+    void *dato;
 }
-typedef struct contenedor * contenedor_t;
+typedef struct nodo *nodo_t;
 
-/* Funciones del contenedor */
+/* Funciones del nodo */
 
-contenedor_t contenedor_crear(char * clave, void * dato) {
-    /* Todo contenedor debe tener una clave, no se crean contenedores vacios */
+nodo_t nodo_crear(char *clave, void *dato) {
+    /* Todo nodo debe tener una clave, no se crean nodos vacios */
     if (!clave) return NULL;
-    contenedor_t * nuevo = malloc(sizeof(*nuevo));
+    nodo_t *nuevo = malloc(sizeof(*nuevo));
     if (!nuevo)
         return NULL;
     /* Reservar espacio para la clave */
@@ -46,15 +46,15 @@ contenedor_t contenedor_crear(char * clave, void * dato) {
     return nuevo;
 }
 
-char * contenedor_ver_clave(contenedor_t cont) {
+char *nodo_ver_clave(nodo_t cont) {
     return cont->clave;
 }
 
-void * contenedor_ver_dato(contenedor_t cont) {
+void *nodo_ver_dato(nodo_t cont) {
     return cont->dato;
 }
 
-void contenedor_destruir(contenedor_t cont, destruir_dato_t destruir_dato) {
+void nodo_destruir(nodo_t cont, destruir_dato_t destruir_dato) {
     if (!cont) return NULL;
     if (destruir_dato)
         destruir_dato(cont->dato);
@@ -64,7 +64,7 @@ void contenedor_destruir(contenedor_t cont, destruir_dato_t destruir_dato) {
 
 /* Funciones auxiliares */
 static bool crear_lista_para_hash(lista_t ** lista) {
-    lista_t * aux = lista_crear();
+    lista_t *aux = lista_crear();
     if (!aux)
         return false;
     *lista = aux;
@@ -77,11 +77,12 @@ static bool crear_lista_para_hash(lista_t ** lista) {
 
 hash_t *hash_crear(hash_destruir_dato_t destruir_dato) {
     hash_t *nuevo = malloc(sizeof(*nuevo));
-    lista_t **datos = calloc(TAM_INICIAL, sizeof(*datos));
+    lista_t **datos;
     if (!nuevo)
         return NULL;
+    datos = calloc(TAM_INICIAL, sizeof(*datos));
     if (!datos) {
-        free(nuevo;
+        free(nuevo);
         return NULL;
     }
     /* Caso general */
@@ -99,7 +100,7 @@ hash_t *hash_crear(hash_destruir_dato_t destruir_dato) {
  */
 bool hash_guardar(hash_t *hash, const char *clave, void *dato) {
     size_t indice = hash_conseguir_indice(hash, clave);
-    contenedor_t * nuevo = contenedor_crear(clave, dato);
+    nodo_t *nuevo = nodo_crear(clave, dato);
     if (!nuevo) return false;
 
     /* Se crea la lista si no existe, si la lista no se puede crear devuelve false */
@@ -173,7 +174,7 @@ bool hash_iter_avanzar(hash_iter_t *iter);
 
 // Devuelve clave actual, esa clave no se puede modificar ni liberar.
 const char *hash_iter_ver_actual(const hash_iter_t *iter) {
-    return (hash_iter_al_final(iter) ? NULL: contenedor_ver_clave(lista_iter_ver_actual(iter->lista_iter)));
+    return (hash_iter_al_final(iter) ? NULL: nodo_ver_clave(lista_iter_ver_actual(iter->lista_iter)));
 }
 
 // Comprueba si terminó la iteración
@@ -182,7 +183,7 @@ bool hash_iter_al_final(const hash_iter_t *iter) {
 }
 
 // Destruye iterador
-void hash_iter_destruir(hash_iter_t* iter) {
+void hash_iter_destruir(hash_iter_t *iter) {
     lista_iter_destruir(iter->lista_iter);
     free(iter);
 }
