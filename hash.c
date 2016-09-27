@@ -10,7 +10,7 @@ struct hash {
     lista_t **datos;
     size_t cantidad;
     size_t tam;
-    destruir_dato_t destruir_dato;
+    hash_destruir_dato_t destruir_dato;
 };
 
 struct hash_iter {
