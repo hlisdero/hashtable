@@ -46,20 +46,20 @@ nodo_t nodo_crear(char *clave, void *dato) {
     return nuevo;
 }
 
-char *nodo_ver_clave(nodo_t cont) {
-    return cont->clave;
+char *nodo_ver_clave(nodo_t nodo) {
+    return nodo->clave;
 }
 
-void *nodo_ver_dato(nodo_t cont) {
-    return cont->dato;
+void *nodo_ver_dato(nodo_t nodo) {
+    return nodo->dato;
 }
 
-void nodo_destruir(nodo_t cont, destruir_dato_t destruir_dato) {
-    if (!cont) return NULL;
+void nodo_destruir(nodo_t nodo, destruir_dato_t destruir_dato) {
+    if (!nodo) return NULL;
     if (destruir_dato)
-        destruir_dato(cont->dato);
-    free(cont->clave);
-    free(cont);
+        destruir_dato(nodo->dato);
+    free(nodo->clave);
+    free(nodo);
 }
 
 /* Funciones auxiliares */
@@ -71,18 +71,24 @@ static bool crear_lista_para_hash(lista_t ** lista) {
     return true;
 }
 
+static bool crear_iter_para_hash(lista_iter_t ** iter) {
+    lista_iter_t *aux = lista_iter_crear();
+    if (!aux)
+        return false;
+    *iter = aux;
+    return true;
+}
+
 /**************************************
  **  Primitivas de la Tabla de hash  **
  **************************************/
 
 hash_t *hash_crear(hash_destruir_dato_t destruir_dato) {
     hash_t *nuevo = malloc(sizeof(*nuevo));
-    lista_t **datos;
-    if (!nuevo)
-        return NULL;
-    datos = calloc(TAM_INICIAL, sizeof(*datos));
-    if (!datos) {
+    lista_t **datos = calloc(TAM_INICIAL, sizeof(*datos));
+    if (!nuevo || !datos)
         free(nuevo);
+        free(datos);
         return NULL;
     }
     /* Caso general */
@@ -101,12 +107,19 @@ hash_t *hash_crear(hash_destruir_dato_t destruir_dato) {
 bool hash_guardar(hash_t *hash, const char *clave, void *dato) {
     size_t indice = hash_conseguir_indice(hash, clave);
     nodo_t *nuevo = nodo_crear(clave, dato);
+    lista_iter_t *iter;
     if (!nuevo) return false;
 
     /* Se crea la lista si no existe, si la lista no se puede crear devuelve false */
-    if (!hash->datos[i] || !crear_lista_para_hash(hash->datos+i))
+    if (!hash->datos[i] || !crear_lista_para_hash(hash->datos+i) || !crear_iter_para_hash(&iter))
+        lista_destruir(hash->datos[i]);
+        nodo_destruir(nuevo);
         return false;
-    /* HAY QUE RECORRER LA LISTA Y FIJARSE QUE NO ESTE REPETIDO E INSERTAR */
+    if (buscar_clave_lista(iter)) {
+        lista_iter_borrar(iter);
+    }
+    lista_iter_insertar(iter, nuevo);
+    return true;
 }
 
 /* Borra un elemento del hash y devuelve el dato asociado.  Devuelve
@@ -126,7 +139,9 @@ void *hash_obtener(const hash_t *hash, const char *clave);
 /* Determina si clave pertenece o no al hash.
  * Pre: La estructura hash fue inicializada
  */
-bool hash_pertenece(const hash_t *hash, const char *clave);
+bool hash_pertenece(const hash_t *hash, const char *clave) {
+
+}
 
 /* Devuelve la cantidad de elementos del hash.
  * Pre: La estructura hash fue inicializada
