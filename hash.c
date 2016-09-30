@@ -20,15 +20,15 @@ struct hash_iter {
 };
 
 /* Estructura para guardar los datos */
-struct nodo {
+typedef struct nodo {
     char *clave;
     void *dato;
-}
-typedef struct nodo *nodo_t;
+}nodo_t;
+
 
 /* Funciones del nodo */
 
-nodo_t nodo_crear(char *clave, void *dato) {
+nodo_t* nodo_crear(char *clave, void *dato) {
     /* Todo nodo debe tener una clave, no se crean nodos vacios */
     if (!clave) return NULL;
     nodo_t *nuevo = malloc(sizeof(*nuevo));
@@ -86,7 +86,7 @@ static bool crear_iter_para_hash(lista_iter_t ** iter) {
 hash_t *hash_crear(hash_destruir_dato_t destruir_dato) {
     hash_t *nuevo = malloc(sizeof(*nuevo));
     lista_t **datos = calloc(TAM_INICIAL, sizeof(*datos));
-    if (!nuevo || !datos)
+    if (!nuevo || !datos){
         free(nuevo);
         free(datos);
         return NULL;
@@ -97,6 +97,18 @@ hash_t *hash_crear(hash_destruir_dato_t destruir_dato) {
     nuevo->cantidad = 0;
     nuevo->destruir_dato = destruir_dato;
     return nuevo;
+}
+
+size_t hash_conseguir_indice(const hash_t *hash, const char *clave){
+    unsigned char* tempstr;
+    tempstr=(unsigned char*)clave;
+    unsigned long indice = 5381;
+    unsigned int c;
+    
+    while((c=*tempstr++)!=0){
+		indice=((indice<<5)+indice)+c; /* indice * 33 + c */
+	}
+	return indice%hash->tam;
 }
 
 /* Guarda un elemento en el hash, si la clave ya se encuentra en la
@@ -128,19 +140,59 @@ bool hash_guardar(hash_t *hash, const char *clave, void *dato) {
  * Post: El elemento fue borrado de la estructura y se lo devolvió,
  * en el caso de que estuviera guardado.
  */
-void *hash_borrar(hash_t *hash, const char *clave);
+void *hash_borrar(hash_t *hash, const char *clave){
+	if(hash->cantidad==0)
+	    return NULL;
+	size_t indice=hash_conseguir_indice(hash,clave);
+	if(hash->datos[indice]==NULL)
+	    return NULL;
+	else{
+		lista_iter_t* iter = lista_iter_crear(hash->datos[indice]);
+		if (iter == NULL)
+			return NULL;
+		void* dato=lista_iter_ver_actual(iter);
+		hash->cantidad--;
+		lista_destruir(hash->datos[indice],NULL);
+		hash->datos[indice]=NULL;
+		lista_iter_destruir(iter);
+		return dato;
+	}
+}
 
 /* Obtiene el valor de un elemento del hash, si la clave no se encuentra
  * devuelve NULL.
  * Pre: La estructura hash fue inicializada
  */
-void *hash_obtener(const hash_t *hash, const char *clave);
+void *hash_obtener(const hash_t *hash, const char *clave){
+	if(hash->cantidad==0)
+	    return NULL;
+	size_t indice = hash_conseguir_indice(hash, clave);
+	if(hash->datos[indice]==NULL)
+	    return NULL;
+	else{
+		lista_iter_t* iter=lista_iter_crear(hash->datos[indice]);
+		if(iter==NULL)
+		    return NULL;
+		void* dato=lista_iter_ver_actual(iter);
+		while(!lista_iter_al_final(iter)){
+			dato=lista_iter_ver_actual(iter);
+		    lista_iter_avanzar(iter);
+		}    
+		lista_iter_destruir(iter);
+		return dato;
+	}
+}
 
 /* Determina si clave pertenece o no al hash.
  * Pre: La estructura hash fue inicializada
  */
-bool hash_pertenece(const hash_t *hash, const char *clave) {
-
+bool hash_pertenece(const hash_t *hash, const char *clave){
+	if(hash->cantidad==0)
+	    return false;
+	size_t indice=hash_conseguir_indice(hash,clave);
+	if(hash->datos[indice]==NULL)
+	    return false;
+	return true;
 }
 
 /* Devuelve la cantidad de elementos del hash.
@@ -157,11 +209,9 @@ size_t hash_cantidad(const hash_t *hash) {
  */
 void hash_destruir(hash_t *hash) {
     int i;
-    if (!hash)
-        return NULL;
-
-    for (i = 0; i < hash->tam; i++) {
-        lista_destruir(hash->datos[i], hash->destruir_dato); // lista_destruir no falla con NULL
+    for (i = 0; i < hash->tam-1; i++) {
+		if(hash->datos[i]!=NULL)
+            lista_destruir(hash->datos[i], hash->destruir_dato); // lista_destruir no falla con NULL
     }
     free(hash->datos);
     free(hash);
@@ -172,16 +222,14 @@ void hash_destruir(hash_t *hash) {
  ****************************************/
 
 // Crea iterador
-hash_iter_t *hash_iter_crear(const hash_t *hash) {
-    if (!hash) return NULL;
-    hash_iter_t *nuevo = malloc(sizeof(*nuevo));
-    if (!nuevo)
-        return NULL;
-    /* Caso general */
-    nuevo->hash = hash;
-    nuevo->lista_iter = NULL;
-    nuevo->pos = 0;
-    return nuevo;
+hash_iter_t *hash_iter_crear(const hash_t *hash){
+	hash_iter_t* iter=malloc(sizeof(hash_iter_t));
+	if(iter==NULL)
+	    return NULL;
+	iter->hash=hash;
+	iter->lista_iter=NULL;
+	iter->pos=0;
+	return iter;
 }
 
 // Avanza iterador
