@@ -23,12 +23,12 @@ struct hash_iter {
 typedef struct nodo {
     char *clave;
     void *dato;
-}nodo_t;
+} nodo_t;
 
 
 /* Funciones del nodo */
 
-nodo_t* nodo_crear(char *clave, void *dato) {
+nodo_t* nodo_crear(const char *clave, void *dato) {
     /* Todo nodo debe tener una clave, no se crean nodos vacios */
     if (!clave) return NULL;
     nodo_t *nuevo = malloc(sizeof(*nuevo));
@@ -46,16 +46,20 @@ nodo_t* nodo_crear(char *clave, void *dato) {
     return nuevo;
 }
 
-char *nodo_ver_clave(nodo_t nodo) {
-    return nodo->clave;
+bool nodo_esta_vacio(nodo_t * nodo) {
+    return (!nodo);
 }
 
-void *nodo_ver_dato(nodo_t nodo) {
-    return nodo->dato;
+char *nodo_ver_clave(nodo_t * nodo) {
+    return (nodo_esta_vacio(nodo)? NULL: nodo->clave);
 }
 
-void nodo_destruir(nodo_t nodo, destruir_dato_t destruir_dato) {
-    if (!nodo) return NULL;
+void *nodo_ver_dato(nodo_t * nodo) {
+    return (nodo_esta_vacio(nodo)? NULL: nodo->dato);
+}
+
+void nodo_destruir(nodo_t * nodo, hash_destruir_dato_t destruir_dato) {
+    if (!nodo) return;
     if (destruir_dato)
         destruir_dato(nodo->dato);
     free(nodo->clave);
@@ -71,12 +75,34 @@ static bool crear_lista_para_hash(lista_t ** lista) {
     return true;
 }
 
-static bool crear_iter_para_hash(lista_iter_t ** iter) {
-    lista_iter_t *aux = lista_iter_crear();
+static bool crear_iter_para_hash(lista_iter_t ** iter, lista_t * lista) {
+    lista_iter_t *aux = lista_iter_crear(lista);
     if (!aux)
         return false;
     *iter = aux;
     return true;
+}
+
+static bool buscar_clave_lista(const char * clave, lista_iter_t * iter) {
+    char * clave_lista = nodo_ver_clave(lista_iter_ver_actual(iter));
+    /* Mientras la clave no sea la actual y se pueda avanzar, buscamos la clave */
+    while (clave != clave_lista && !lista_iter_avanzar(iter))
+        clave_lista = nodo_ver_clave(lista_iter_ver_actual(iter));
+    if (clave == clave_lista)
+        return true;
+    else
+        return false;
+}
+static size_t hash_conseguir_indice(const hash_t *hash, const char *clave) {
+    unsigned char* tempstr;
+    tempstr=(unsigned char*)clave;
+    unsigned long indice = 5381;
+    unsigned int c;
+
+    while((c=*tempstr++)!=0){
+		indice=((indice<<5)+indice)+c; /* indice * 33 + c */
+	}
+	return indice%hash->tam;
 }
 
 /**************************************
@@ -99,17 +125,6 @@ hash_t *hash_crear(hash_destruir_dato_t destruir_dato) {
     return nuevo;
 }
 
-size_t hash_conseguir_indice(const hash_t *hash, const char *clave){
-    unsigned char* tempstr;
-    tempstr=(unsigned char*)clave;
-    unsigned long indice = 5381;
-    unsigned int c;
-    
-    while((c=*tempstr++)!=0){
-		indice=((indice<<5)+indice)+c; /* indice * 33 + c */
-	}
-	return indice%hash->tam;
-}
 
 /* Guarda un elemento en el hash, si la clave ya se encuentra en la
  * estructura, la reemplaza. De no poder guardarlo devuelve false.
@@ -123,14 +138,15 @@ bool hash_guardar(hash_t *hash, const char *clave, void *dato) {
     if (!nuevo) return false;
 
     /* Se crea la lista si no existe, si la lista no se puede crear devuelve false */
-    if (!hash->datos[i] || !crear_lista_para_hash(hash->datos+i) || !crear_iter_para_hash(&iter))
-        lista_destruir(hash->datos[i]);
-        nodo_destruir(nuevo);
+    if (!hash->datos[indice] || !crear_lista_para_hash(hash->datos+indice) || !crear_iter_para_hash(&iter, hash->datos[indice]))
+        lista_destruir(hash->datos[indice], hash->destruir_dato);
+        nodo_destruir(nuevo, hash->destruir_dato);
         return false;
-    if (buscar_clave_lista(iter)) {
+    if (buscar_clave_lista(clave, iter)) {
         lista_iter_borrar(iter);
     }
     lista_iter_insertar(iter, nuevo);
+    ++(hash->cantidad);
     return true;
 }
 
@@ -177,7 +193,7 @@ void *hash_obtener(const hash_t *hash, const char *clave){
 		while(!lista_iter_al_final(iter)){
 			dato=lista_iter_ver_actual(iter);
 		    lista_iter_avanzar(iter);
-		}    
+		}
 		lista_iter_destruir(iter);
 		return dato;
 	}
@@ -208,7 +224,7 @@ size_t hash_cantidad(const hash_t *hash) {
  * Post: La estructura hash fue destruida
  */
 void hash_destruir(hash_t *hash) {
-    int i;
+    size_t i;
     for (i = 0; i < hash->tam-1; i++) {
 		if(hash->datos[i]!=NULL)
             lista_destruir(hash->datos[i], hash->destruir_dato); // lista_destruir no falla con NULL
