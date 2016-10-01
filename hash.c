@@ -233,21 +233,75 @@ hash_iter_t *hash_iter_crear(const hash_t *hash){
 }
 
 // Avanza iterador
-bool hash_iter_avanzar(hash_iter_t *iter);
+bool hash_iter_avanzar(hash_iter_t *iter){
+	if(hash_iter_al_final(iter))
+	    return false;
+	if(lista_iter_al_final(iter->lista_iter)){
+		size_t i=iter->pos+1;
+		lista_iter_t* aux=NULL;
+		if(hash_iter_avance_interno(iter,&i,&aux)){
+			lista_iter_destruir(iter->lista_iter);
+			iter->lista_iter=aux;
+			iter->pos=i;
+			return true;
+		}else
+			return false;
+	}else if (lista_iter_avanzar(iter->lista_iter)){
+		    if(lista_iter_al_final(iter->lista_iter)){
+			    size_t i=iter->pos+1;
+			    lista_iter_t* aux=NULL;
+			    if(hash_iter_avance_interno(iter,&i,&aux)){
+				    lista_iter_destruir(iter->lista_iter);
+				    iter->lista_iter=aux;
+				    iter->pos=i;
+				    return true;
+			    }else
+				    return false;
+		    }else
+			    return true;
+	    }else
+		    return false;
+}
+
+bool hash_iter_avance_interno(hash_iter_t* iter,size_t* i,lista_iter_t** aux){
+	while((*aux==NULL)&&(*i<(iter->hash->tam))){
+		if(iter->hash->datos[*i]!=NULL){
+			*aux=lista_iter_crear(iter->hash->datos[*i]);
+			if(*aux==NULL)
+			    return false;
+			if(lista_iter_al_final(*aux)){
+				lista_iter_destruir(*aux);
+				*aux=NULL;
+			}
+		}else{
+			(*i)++;
+		}
+	}
+	return true;
+}
+
+
 
 // Devuelve clave actual, esa clave no se puede modificar ni liberar.
-const char *hash_iter_ver_actual(const hash_iter_t *iter) {
-    return (hash_iter_al_final(iter) ? NULL: nodo_ver_clave(lista_iter_ver_actual(iter->lista_iter)));
+const char *hash_iter_ver_actual(const hash_iter_t *iter){
+	if(hash_iter_al_final(iter)){
+		return NULL;
+	}else{
+		lista_iter_t* iter_actual=iter->lista_iter;
+		nodo_t* nodo_actual=lista_iter_ver_actual(iter_actual);
+		return nodo_actual->clave;
+	}
 }
 
 // Comprueba si terminó la iteración
 bool hash_iter_al_final(const hash_iter_t *iter) {
-    return (iter->pos == iter->hash->tam);
+    return (iter->hash->cantidad==0 || iter->hash->cantidad==iter->pos);
 }
 
 // Destruye iterador
-void hash_iter_destruir(hash_iter_t *iter) {
-    lista_iter_destruir(iter->lista_iter);
-    free(iter);
+void hash_iter_destruir(hash_iter_t* iter){
+	if(iter->lista_iter!=NULL)
+	    lista_iter_destruir(iter->lista_iter);
+	free(iter);
 }
 
