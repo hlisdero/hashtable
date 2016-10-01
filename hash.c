@@ -261,7 +261,7 @@ void hash_destruir(hash_t *hash) {
     size_t elem_a_borrar=hash->cantidad;
     lista_t* lista;
     nodo_t* nodo;
-    int i=0;
+    size_t i=0;
     while((elem_a_borrar>0) && (i<hash->tam)){
 		lista=hash->datos[i];
 		if(lista!=NULL){
@@ -285,6 +285,22 @@ void hash_destruir(hash_t *hash) {
  **  Primitivas del Iterador del hash  **
  ****************************************/
 
+static bool hash_iter_avance_interno(hash_iter_t* iter,size_t* i,lista_iter_t** aux){
+	while((*aux==NULL)&&(*i<(iter->hash->tam))){
+		if(iter->hash->datos[*i]!=NULL){
+			*aux=lista_iter_crear(iter->hash->datos[*i]);
+			if(*aux==NULL)
+			    return false;
+			if(lista_iter_al_final(*aux)){
+				lista_iter_destruir(*aux);
+				*aux=NULL;
+			}
+		}else{
+			(*i)++;
+		}
+	}
+	return true;
+}
 // Crea iterador
 hash_iter_t *hash_iter_crear(const hash_t *hash){
 	hash_iter_t* iter=malloc(sizeof(hash_iter_t));
@@ -338,25 +354,6 @@ bool hash_iter_avanzar(hash_iter_t *iter){
 	    }else
 		    return false;
 }
-
-bool hash_iter_avance_interno(hash_iter_t* iter,size_t* i,lista_iter_t** aux){
-	while((*aux==NULL)&&(*i<(iter->hash->tam))){
-		if(iter->hash->datos[*i]!=NULL){
-			*aux=lista_iter_crear(iter->hash->datos[*i]);
-			if(*aux==NULL)
-			    return false;
-			if(lista_iter_al_final(*aux)){
-				lista_iter_destruir(*aux);
-				*aux=NULL;
-			}
-		}else{
-			(*i)++;
-		}
-	}
-	return true;
-}
-
-
 
 // Devuelve clave actual, esa clave no se puede modificar ni liberar.
 const char *hash_iter_ver_actual(const hash_iter_t *iter){
