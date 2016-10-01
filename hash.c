@@ -94,17 +94,14 @@ static bool comparar_claves(const char * clave1, const char * clave2) {
  * Deja el iterador en la clave si la encontró o al final en caso contrario.
  */
 static bool buscar_clave_lista(const char * clave, lista_iter_t * iter) {
-    char *clave_lista = nodo_ver_clave(lista_iter_ver_actual(iter));
+    char *clave_lista;
     /* Mientras se pueda avanzar, buscamos la clave */
-    while (lista_iter_avanzar(iter)) {
+    do {
         clave_lista = nodo_ver_clave(lista_iter_ver_actual(iter));
         if (comparar_claves(clave, clave_lista))
-            break;
-    }
-    if (comparar_claves(clave, clave_lista))
-        return true;
-    else
-        return false;
+            return true;
+    } while (lista_iter_avanzar(iter));
+    return false;
 }
 static size_t hash_conseguir_indice(const hash_t *hash, const char *clave) {
     unsigned char* tempstr;
