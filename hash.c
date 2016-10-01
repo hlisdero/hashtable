@@ -142,6 +142,7 @@ hash_t *hash_crear(hash_destruir_dato_t destruir_dato) {
  * Post: Se almacenó el par (clave, dato)
  */
 bool hash_guardar(hash_t *hash, const char *clave, void *dato) {
+    if (!clave) return false; // Debe recibir una clave válida
     size_t indice = hash_conseguir_indice(hash, clave);
     nodo_t *nuevo = nodo_crear(clave, dato);
     lista_iter_t *iter;
