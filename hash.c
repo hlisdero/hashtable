@@ -28,14 +28,14 @@ typedef struct nodo {
 
 /* Funciones del nodo */
 
-nodo_t* nodo_crear(const char *clave, void *dato) {
+static nodo_t* nodo_crear(const char *clave, void *dato) {
     /* Todo nodo debe tener una clave, no se crean nodos vacios */
     if (!clave) return NULL;
     nodo_t *nuevo = malloc(sizeof(*nuevo));
     if (!nuevo)
         return NULL;
     /* Reservar espacio para la clave */
-    nuevo->clave = malloc((strlen(clave)+1));
+    nuevo->clave = malloc((strlen(clave)+1)*sizeof(char));
     if (!(nuevo->clave)) {
         free(nuevo);
         return NULL;
@@ -46,11 +46,11 @@ nodo_t* nodo_crear(const char *clave, void *dato) {
     return nuevo;
 }
 
-bool nodo_esta_vacio(nodo_t * nodo) {
+static bool nodo_esta_vacio(nodo_t * nodo) {
     return (!nodo);
 }
 
-char *nodo_ver_clave(nodo_t * nodo) {
+static char *nodo_ver_clave(nodo_t * nodo) {
     return (nodo_esta_vacio(nodo)? NULL: nodo->clave);
 }
 
@@ -58,7 +58,7 @@ void *nodo_ver_dato(nodo_t * nodo) {
     return (nodo_esta_vacio(nodo)? NULL: nodo->dato);
 }
 
-void nodo_destruir(nodo_t * nodo, hash_destruir_dato_t destruir_dato) {
+static void nodo_destruir(nodo_t * nodo, hash_destruir_dato_t destruir_dato) {
     if (!nodo) return;
     if (destruir_dato)
         destruir_dato(nodo->dato);
@@ -67,28 +67,41 @@ void nodo_destruir(nodo_t * nodo, hash_destruir_dato_t destruir_dato) {
 }
 
 /* Funciones auxiliares */
-static bool crear_lista_para_hash(lista_t ** lista) {
-    lista_t *aux = lista_crear();
-    if (!aux)
+static bool crear_lista_con_iter(lista_t ** lista, lista_iter_t ** iter) {
+    lista_t *nueva_lista = lista_crear();
+    lista_iter_t *nuevo_iter;
+    if (!nueva_lista)
         return false;
-    *lista = aux;
+    nuevo_iter = lista_iter_crear(nueva_lista);
+    if (!nuevo_iter) {
+        lista_destruir(nueva_lista, NULL);
+        return false;
+    }
+    *lista = nueva_lista;
+    *iter = nuevo_iter;
     return true;
 }
 
-static bool crear_iter_para_hash(lista_iter_t ** iter, lista_t * lista) {
-    lista_iter_t *aux = lista_iter_crear(lista);
-    if (!aux)
+/* Compara las claves, evitando pasarle NULL a strcmp, devuelve true si son iguales */
+static bool comparar_claves(const char * clave1, const char * clave2) {
+    if (!clave1 || !clave2)
         return false;
-    *iter = aux;
-    return true;
+    else
+        return !strcmp(clave1, clave2);
 }
 
+/* Busca la clave en la lista, devuelve true si la encuentra, false en caso contrario.
+ * Deja el iterador en la clave si la encontró o al final en caso contrario.
+ */
 static bool buscar_clave_lista(const char * clave, lista_iter_t * iter) {
-    char * clave_lista = nodo_ver_clave(lista_iter_ver_actual(iter));
-    /* Mientras la clave no sea la actual y se pueda avanzar, buscamos la clave */
-    while (clave != clave_lista && !lista_iter_avanzar(iter))
+    char *clave_lista = nodo_ver_clave(lista_iter_ver_actual(iter));
+    /* Mientras se pueda avanzar, buscamos la clave */
+    while (lista_iter_avanzar(iter)) {
         clave_lista = nodo_ver_clave(lista_iter_ver_actual(iter));
-    if (!strcmp(clave,clave_lista))
+        if (comparar_claves(clave, clave_lista))
+            break;
+    }
+    if (comparar_claves(clave, clave_lista))
         return true;
     else
         return false;
@@ -138,13 +151,13 @@ bool hash_guardar(hash_t *hash, const char *clave, void *dato) {
     if (!nuevo) return false;
 
     /* Se crea la lista si no existe, si la lista o el iterador de esa lista no se pueden crear devuelve false */
-    if (!hash->datos[indice] || !crear_lista_para_hash(hash->datos+indice) || !crear_iter_para_hash(&iter, hash->datos[indice]))
-        lista_destruir(hash->datos[indice], hash->destruir_dato);
+    if (!hash->datos[indice] && !crear_lista_con_iter(hash->datos+indice, &iter) ) {
         nodo_destruir(nuevo, hash->destruir_dato);
         return false;
+    }
     /* Busco la clave, si la encuentra tiene que borrar el elemento que va a ser reemplazado */
     if (buscar_clave_lista(clave, iter)) {
-        lista_iter_borrar(iter);
+        lista_iter_borrar(iter); // El iter quedó en la posición del elemento repetido
     }
     lista_iter_insertar(iter, nuevo);
     ++(hash->cantidad);
