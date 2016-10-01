@@ -88,7 +88,7 @@ static bool buscar_clave_lista(const char * clave, lista_iter_t * iter) {
     /* Mientras la clave no sea la actual y se pueda avanzar, buscamos la clave */
     while (clave != clave_lista && !lista_iter_avanzar(iter))
         clave_lista = nodo_ver_clave(lista_iter_ver_actual(iter));
-    if (clave == clave_lista)
+    if (!strcmp(clave,clave_lista))
         return true;
     else
         return false;
@@ -137,11 +137,12 @@ bool hash_guardar(hash_t *hash, const char *clave, void *dato) {
     lista_iter_t *iter;
     if (!nuevo) return false;
 
-    /* Se crea la lista si no existe, si la lista no se puede crear devuelve false */
+    /* Se crea la lista si no existe, si la lista o el iterador de esa lista no se pueden crear devuelve false */
     if (!hash->datos[indice] || !crear_lista_para_hash(hash->datos+indice) || !crear_iter_para_hash(&iter, hash->datos[indice]))
         lista_destruir(hash->datos[indice], hash->destruir_dato);
         nodo_destruir(nuevo, hash->destruir_dato);
         return false;
+    /* Busco la clave, si la encuentra tiene que borrar el elemento que va a ser reemplazado */
     if (buscar_clave_lista(clave, iter)) {
         lista_iter_borrar(iter);
     }
