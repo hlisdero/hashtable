@@ -133,52 +133,21 @@ hash_t *hash_crear(hash_destruir_dato_t destruir_dato) {
  */
 bool hash_guardar(hash_t *hash, const char *clave, void *dato) {
     size_t indice = hash_conseguir_indice(hash, clave);
-    nodo_t* nodo;
-    if(hash->datos[indice]==NULL){
-		hash->datos[indice]=lista_crear();
-		nodo=nodo_crear(clave,dato);
-		if(lista_insertar_ultimo(hash->datos[indice],nodo)){
-			hash->cantidad++;
-			/*MIRAR REDIMENSIONAR*/
-			return true;
-	    }
-	    else{
-			free(nodo->clave);
-			free(nodo);
-			return false;
-		}
-	}else{
-		lista_iter_t* iter=lista_iter_crear(hash->datos[indice]);
-		if(iter==NULL)
-		    return false;
-		bool encontrado=false;
-		nodo_t* nodo;
-		while((!encontrado)&&(!lista_iter_al_final(iter))){
-			nodo=lista_iter_ver_actual(iter);
-			if(strcmp(nodo->clave,clave)==0){
-				encontrado=true;
-				if(hash->destruir_dato!=NULL)
-				    hash->destruir_dato(nodo->dato);
-				nodo->dato=dato;
-				lista_iter_destruir(iter);
-				return true;
-			}else{
-				lista_iter_avanzar(iter);
-			}
-		}
-		lista_iter_destruir(iter);
-		//Esto ocurre solo si no encontró al elemento
+    nodo_t *nuevo = nodo_crear(clave, dato);
+    lista_iter_t *iter;
+    if (!nuevo) return false;
 
-		nodo=nodo_crear(clave,dato);
-		if(lista_insertar_ultimo(hash->datos[indice],nodo)){
-			hash->cantidad++;
-			/*hash_revisar_redimensionamiento(hash)*/;
-			return true;
-		}else{
-			free(nodo);
-			return false;
-		}
-	}
+    /* Se crea la lista si no existe, si la lista no se puede crear devuelve false */
+    if (!hash->datos[indice] || !crear_lista_para_hash(hash->datos+indice) || !crear_iter_para_hash(&iter, hash->datos[indice]))
+        lista_destruir(hash->datos[indice], hash->destruir_dato);
+        nodo_destruir(nuevo, hash->destruir_dato);
+        return false;
+    if (buscar_clave_lista(clave, iter)) {
+        lista_iter_borrar(iter);
+    }
+    lista_iter_insertar(iter, nuevo);
+    ++(hash->cantidad);
+    return true;
 }
 
 /* Borra un elemento del hash y devuelve el dato asociado.  Devuelve
