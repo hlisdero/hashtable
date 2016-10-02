@@ -259,6 +259,7 @@ static bool hash_redimensionar(hash_t * hash, size_t tam_nuevo) {
 /**************************************
  **  Primitivas de la Tabla de hash  **
  **************************************/
+
 hash_t *hash_crear(hash_destruir_dato_t destruir_dato) {
     return hash_crear_tam_variable(destruir_dato, TAM_INICIAL);
 }
@@ -309,6 +310,7 @@ void *hash_borrar(hash_t *hash, const char *clave) {
     lista_iter_t * iter;
     nodo_t * nodo_salida;
     void * dato_salida;
+
     /* Si la lista es NULL o no logra crear un iterador para recorrerla devuelve NULL */
 	if(!hash->datos[indice] || !(iter = lista_iter_crear(hash->datos[indice])) )
         return NULL;
@@ -337,6 +339,7 @@ void *hash_obtener(const hash_t *hash, const char *clave) {
 	size_t indice = hash_conseguir_indice(hash, clave);
     lista_iter_t *iter;
     void *dato_salida;
+
     /* Si la lista es NULL o no logra crear un iterador para recorrerla devuelve NULL */
 	if (!hash->datos[indice] || !(iter = lista_iter_crear(hash->datos[indice])))
 	    return NULL;
