@@ -3,6 +3,10 @@
 #include <stdlib.h>
 #include <string.h>
 #define TAM_INICIAL 67
+#define FACTOR_CARGA_MAX 2
+#define FACTOR_CARGA_MIN 0.3
+#define FACTOR_ACHIQUE 67
+#define FACTOR_AGRANDAMIENTO 67
 
 /* Definiciones de estructuras de la tabla de hash */
 
@@ -25,6 +29,10 @@ typedef struct nodo {
     void *dato;
 } nodo_t;
 
+struct data_rehash_nodo {
+    bool hubo_error;
+    hash_t * hash;
+};
 
 /* Funciones del nodo */
 
@@ -46,7 +54,7 @@ static nodo_t* nodo_crear(const char *clave, void *dato) {
     return nuevo;
 }
 
-static bool nodo_esta_vacio(nodo_t *nodo) {
+static bool nodo_esta_vacio(const nodo_t *nodo) {
     return (!nodo);
 }
 
@@ -68,6 +76,22 @@ static void nodo_destruir(nodo_t *nodo, hash_destruir_dato_t destruir_dato) {
 
 /* Funciones auxiliares */
 
+static hash_t *hash_crear_tam_variable(hash_destruir_dato_t destruir_dato, size_t tam) {
+    hash_t *nuevo = malloc(sizeof(*nuevo));
+    lista_t **datos = calloc(tam, sizeof(*datos));
+    if (!nuevo || !datos){
+        free(nuevo);
+        free(datos);
+        return NULL;
+    }
+    /* Caso general */
+    nuevo->datos = datos;
+    nuevo->tam = TAM_INICIAL;
+    nuevo->cantidad = 0;
+    nuevo->destruir_dato = destruir_dato;
+    return nuevo;
+}
+
 /* Destruye el iterador y la lista del indice, si está vacía */
 static void destruir_lista_con_iter(hash_t * hash, lista_iter_t * iter, size_t indice) {
     if (iter)
@@ -78,7 +102,7 @@ static void destruir_lista_con_iter(hash_t * hash, lista_iter_t * iter, size_t i
     }
 }
 
-/* Crea la lista para un índice y el iterador para recorrerla, devuelve false en caso de error */
+/* Crea la lista para un índice si es necesario y el iterador para recorrerla, devuelve false en caso de error */
 static bool crear_lista_con_iter(hash_t * hash, lista_iter_t ** iter, size_t indice) {
     lista_iter_t *nuevo_iter;
     if (!hash->datos[indice]) {
@@ -117,6 +141,7 @@ static bool buscar_clave_lista(const char * clave, lista_iter_t * iter) {
     return false;
 }
 
+/* Devuelve el indice a una lista distinta de NULL en la tabla de hash */
 static size_t buscar_lista_hash(const hash_t * hash, size_t inicio) {
     size_t i;
 
@@ -127,6 +152,7 @@ static size_t buscar_lista_hash(const hash_t * hash, size_t inicio) {
     return hash->tam;
 }
 
+/* Actualiza el iterador de la lista, asumiendo que la posición ya fue actualizada */
 static bool actualizar_lista_iter(hash_iter_t * iter) {
     if (hash_iter_al_final(iter)) {
         iter->lista_iter = NULL;
@@ -148,6 +174,7 @@ static size_t hash_conseguir_indice(const hash_t *hash, const char *clave) {
 	return hashval % hash->tam;
 }
 
+/* Destruye los nodos de la lista y la lista */
 static void hash_lista_destruir(lista_t * lista, hash_destruir_dato_t destruir_dato) {
     while (!lista_esta_vacia(lista)) {
         nodo_destruir(lista_borrar_primero(lista), destruir_dato);
@@ -155,24 +182,85 @@ static void hash_lista_destruir(lista_t * lista, hash_destruir_dato_t destruir_d
     lista_destruir(lista, NULL);
 }
 
+/* Destruye las listas de la tabla de hash */
+static void hash_listas_destruir(hash_t * hash) {
+    size_t i = 0;
+
+    while ((i = buscar_lista_hash(hash, i)) != hash->tam) {
+        hash_lista_destruir(hash->datos[i], hash->destruir_dato);
+        hash->datos[i] = NULL;
+    }
+}
+
+/* Funciones de redimensionamiento (re-hash) del hash */
+
+static bool debe_agrandar(const hash_t * hash) {
+    return (hash->cantidad / hash->tam > FACTOR_CARGA_MAX);
+}
+
+static bool debe_achicar(const hash_t * hash) {
+    if (hash->tam < FACTOR_ACHIQUE*TAM_INICIAL)
+        return false;
+    else if (hash->cantidad / hash->tam < FACTOR_CARGA_MIN)
+        return true;
+    else
+        return false;
+}
+
+/* Rehashea un nodo, usando una estructura auxiliar con el hash nuevo y un booleano de salida */
+static bool rehash_nodo(nodo_t * nodo, struct data_rehash_nodo * data) {
+    if (!nodo) return false;
+
+    data->hubo_error = hash_guardar(data->hash, nodo_ver_clave(nodo), nodo_ver_dato(nodo));
+    if (data->hubo_error)
+        return false;
+    else
+        return true;
+}
+
+/* Rehashea una lista, sin modificar los elementos de ella */
+static bool rehash_lista(hash_t * hash, lista_t * lista) {
+    struct data_rehash_nodo data;
+    data.hash = hash;
+    data.hubo_error = false;
+
+    lista_iterar(lista, (bool (*)(void *, void*)) rehash_nodo, &data);
+    if (data.hubo_error)
+        return false;
+    else
+        return true;
+}
+
+static bool hash_redimensionar(hash_t * hash, size_t tam_nuevo) {
+    size_t i = 0;
+    hash_t * nuevo_hash = hash_crear_tam_variable(hash->destruir_dato, tam_nuevo);
+    if (!nuevo_hash) return false;
+
+    while ((i = buscar_lista_hash(hash, i)) != hash->tam) {
+        if (!rehash_lista(nuevo_hash, hash->datos[i]))
+            break;
+    }
+    /* Si copie todos los elementos, entonces terminó bien el while */
+    if (hash->cantidad == nuevo_hash->cantidad) {
+        /* Destruyo las listas y la tabla, que son las cosas que reemplazamos */
+        hash_listas_destruir(hash);
+        free(hash->datos);
+        hash->datos = nuevo_hash->datos;
+        hash->tam = tam_nuevo;
+        free(nuevo_hash); // Solo elimino nuevo_hash como cascarón de la tabla nueva que creamos
+        return true;
+    } else {
+        /* Si falló tengo que destruir todo el hash nuevo, sin excepción */
+        hash_destruir(nuevo_hash);
+        return false;
+    }
+}
+
 /**************************************
  **  Primitivas de la Tabla de hash  **
  **************************************/
-
 hash_t *hash_crear(hash_destruir_dato_t destruir_dato) {
-    hash_t *nuevo = malloc(sizeof(*nuevo));
-    lista_t **datos = calloc(TAM_INICIAL, sizeof(*datos));
-    if (!nuevo || !datos){
-        free(nuevo);
-        free(datos);
-        return NULL;
-    }
-    /* Caso general */
-    nuevo->datos = datos;
-    nuevo->tam = TAM_INICIAL;
-    nuevo->cantidad = 0;
-    nuevo->destruir_dato = destruir_dato;
-    return nuevo;
+    return hash_crear_tam_variable(destruir_dato, TAM_INICIAL);
 }
 
 /* Guarda un elemento en el hash, si la clave ya se encuentra en la
@@ -205,6 +293,8 @@ bool hash_guardar(hash_t *hash, const char *clave, void *dato) {
     }
     lista_iter_destruir(iter);
     ++(hash->cantidad);
+    if (debe_agrandar(hash))
+        hash_redimensionar(hash, (hash->tam)*FACTOR_AGRANDAMIENTO);
     return true;
 }
 
@@ -229,6 +319,8 @@ void *hash_borrar(hash_t *hash, const char *clave) {
         nodo_destruir(nodo_salida, NULL);
         --(hash->cantidad);
         destruir_lista_con_iter(hash, iter, indice);
+        if (debe_achicar(hash))
+            hash_redimensionar(hash, (hash->tam)/FACTOR_ACHIQUE);
         return dato_salida;
     /* Caso no encontró la clave en la lista */
     } else {
@@ -288,12 +380,7 @@ size_t hash_cantidad(const hash_t *hash) {
  * Post: La estructura hash fue destruida
  */
 void hash_destruir(hash_t *hash) {
-    size_t i = 0;
-
-    while ((i = buscar_lista_hash(hash, i)) != hash->tam) {
-        hash_lista_destruir(hash->datos[i], hash->destruir_dato);
-        hash->datos[i] = NULL;
-    }
+    hash_listas_destruir(hash);
     free(hash->datos);
     free(hash);
 }
@@ -351,4 +438,3 @@ void hash_iter_destruir(hash_iter_t *iter) {
 	    lista_iter_destruir(iter->lista_iter);
 	free(iter);
 }
-
